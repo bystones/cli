@@ -351,6 +351,45 @@ func TestCommand_Run_BeforeReturnNewContext(t *testing.T) {
 	require.Equal(t, "bval", receivedValFromAction)
 }
 
+func TestCommand_Run_AfterAndBeforeSameContextSubCommand(t *testing.T) {
+	var receivedValFromAction, receivedValFromAfter string
+	type key string
+
+	bkey := key("bkey")
+
+	cmd := &Command{
+		Name: "bar",
+		Before: func(ctx context.Context, cmd *Command) (context.Context, error) {
+			return context.WithValue(ctx, bkey, "bval"), nil
+		},
+		After: func(ctx context.Context, cmd *Command) error {
+			if val := ctx.Value(bkey); val == nil {
+				return errors.New("bkey value not found")
+			} else {
+				receivedValFromAfter = val.(string)
+			}
+			return nil
+		},
+		Commands: []*Command{
+			{
+				Name: "baz",
+				Action: func(ctx context.Context, cmd *Command) error {
+					if val := ctx.Value(bkey); val == nil {
+						return errors.New("bkey value not found")
+					} else {
+						receivedValFromAction = val.(string)
+					}
+					return nil
+				},
+			},
+		},
+	}
+
+	require.NoError(t, cmd.Run(buildTestContext(t), []string{"bar", "baz"}))
+	require.Equal(t, "bval", receivedValFromAfter)
+	require.Equal(t, "bval", receivedValFromAction)
+}
+
 func TestCommand_OnUsageError_hasCommandContext(t *testing.T) {
 	cmd := &Command{
 		Name: "bar",

@@ -202,20 +202,6 @@ func (cmd *Command) Run(ctx context.Context, osArgs []string) (deferErr error) {
 		}
 	}
 
-	if cmd.After != nil && !cmd.Root().shellCompletion {
-		defer func() {
-			if err := cmd.After(ctx, cmd); err != nil {
-				err = cmd.handleExitCoder(ctx, err)
-
-				if deferErr != nil {
-					deferErr = newMultiError(deferErr, err)
-				} else {
-					deferErr = err
-				}
-			}
-		}()
-	}
-
 	for _, grp := range cmd.MutuallyExclusiveFlags {
 		if err := grp.check(cmd); err != nil {
 			_ = ShowSubcommandHelp(cmd)
@@ -274,6 +260,23 @@ func (cmd *Command) Run(ctx context.Context, osArgs []string) (deferErr error) {
 		cmdChain = append(cmdChain, p)
 	}
 	slices.Reverse(cmdChain)
+
+	for _, cmd := range cmdChain {
+		if cmd.After == nil {
+			continue
+		}
+		defer func() {
+			if err := cmd.After(ctx, cmd); err != nil {
+				err = cmd.handleExitCoder(ctx, err)
+
+				if deferErr != nil {
+					deferErr = newMultiError(deferErr, err)
+				} else {
+					deferErr = err
+				}
+			}
+		}()
+	}
 
 	// Run Before actions in order.
 	for _, cmd := range cmdChain {
